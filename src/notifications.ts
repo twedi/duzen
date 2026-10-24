@@ -7,7 +7,7 @@ const CHANNEL_ID = 'duzen-reminders';
 
 // Expo Go bildirim modülünü içermiyor. Geliştirirken false kalsın;
 // APK (gerçek build) üretmeden önce true yap.
-const NOTIFICATIONS_ENABLED = false;
+const NOTIFICATIONS_ENABLED = true;
 
 // expo-notifications, Expo Go'da (özellikle Android) her zaman yüklenemeyebiliyor.
 // Bu yüzden import'u erteliyoruz; modül yoksa uygulama çökmez, bildirimler sadece kapalı kalır.
