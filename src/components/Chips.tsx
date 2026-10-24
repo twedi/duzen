@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './AppText';
 import { useTheme } from '../ThemeContext';
 import { PriorityKey } from '../theme';
-import { dueInfo } from '../dates';
+import { dueInfoRange } from '../dates';
 import { tap } from '../haptics';
 import type { Repeat } from '../db/repo';
 
@@ -146,10 +146,10 @@ export function MetaChip({ icon, label }: { icon: IconName; label: string }) {
 }
 
 /** Tarih/saat çipi: gecikmişse kırmızı, bugünse vurgulu */
-export function DueChip({ iso, hasTime, done }: { iso: string; hasTime: boolean; done: boolean }) {
+export function DueChip({ iso, startIso = null, hasTime, done }: { iso: string; startIso?: string | null; hasTime: boolean; done: boolean }) {
   const { theme } = useTheme();
   const c = theme.colors;
-  const { label, tone } = dueInfo(iso, hasTime, done);
+  const { label, tone } = dueInfoRange(startIso, iso, hasTime, done);
   const map = {
     overdue: { bg: c.priority.high.bg, fg: c.priority.high.fg, icon: 'alert-circle-outline' as IconName },
     today: { bg: c.primaryContainer, fg: c.onPrimaryContainer, icon: (hasTime ? 'clock-outline' : 'calendar-today') as IconName },

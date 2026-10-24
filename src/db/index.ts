@@ -8,7 +8,7 @@ export function getDb(): Promise<SQLite.SQLiteDatabase> {
   return dbPromise;
 }
 
-const DB_VERSION = 2;
+const DB_VERSION = 4;
 
 async function init(): Promise<SQLite.SQLiteDatabase> {
   const db = await SQLite.openDatabaseAsync('duzen.db');
@@ -89,6 +89,8 @@ async function init(): Promise<SQLite.SQLiteDatabase> {
   const row = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version');
   const version = row?.user_version ?? 0;
   if (version < 2) await migrateTo2(db);
+  if (version < 3) await migrateTo3(db);
+  if (version < 4) await migrateTo4(db);
   return db;
 }
 
@@ -134,5 +136,24 @@ async function migrateTo2(db: SQLite.SQLiteDatabase): Promise<void> {
     }
   }
 
+  await db.execAsync('PRAGMA user_version = 2');
+}
+
+/** v3: tarih aralığı için başlangıç tarihi (boşsa görev tek günlüktür) */
+async function migrateTo3(db: SQLite.SQLiteDatabase): Promise<void> {
+  if (!(await hasColumn(db, 'cards', 'start_at'))) {
+    await db.execAsync('ALTER TABLE cards ADD COLUMN start_at TEXT');
+  }
+  await db.execAsync('PRAGMA user_version = 3');
+}
+
+/** v4: tekrar eden görevde geri alma bağlantısı ve odak süresi */
+async function migrateTo4(db: SQLite.SQLiteDatabase): Promise<void> {
+  if (!(await hasColumn(db, 'cards', 'next_id'))) {
+    await db.execAsync('ALTER TABLE cards ADD COLUMN next_id INTEGER');
+  }
+  if (!(await hasColumn(db, 'cards', 'focus_minutes'))) {
+    await db.execAsync('ALTER TABLE cards ADD COLUMN focus_minutes INTEGER NOT NULL DEFAULT 0');
+  }
   await db.execAsync(`PRAGMA user_version = ${DB_VERSION}`);
 }

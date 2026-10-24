@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Screen } from '../../src/components/Screen';
@@ -10,6 +10,9 @@ import { Fab, IconButton } from '../../src/components/Form';
 import { BoardIcon } from '../../src/components/Pickers';
 import { ActionSheet, SheetOption } from '../../src/components/Overlays';
 import { useTheme } from '../../src/ThemeContext';
+import { ListItem, PressableScale } from '../../src/components/Motion';
+import { MetaChip } from '../../src/components/Chips';
+import { withAlpha } from '../../src/colors';
 import { BoardSummary, deleteBoard, listBoards } from '../../src/db/repo';
 import { syncNotifications } from '../../src/notifications';
 import { impact } from '../../src/haptics';
@@ -99,47 +102,61 @@ export default function BoardsScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 110, gap: 12 }}>
-        {boards.map((b) => {
+        {boards.map((b, i) => {
           const pct = b.total ? b.done / b.total : 0;
+          const open = b.total - b.done;
           return (
-            <Pressable
-              key={b.id}
-              onPress={() => router.push({ pathname: '/board/[id]', params: { id: String(b.id) } })}
-              onLongPress={() => boardMenu(b)}
-              style={({ pressed }) => ({
-                backgroundColor: c.surface,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: c.border,
-                padding: 16,
-                opacity: pressed ? 0.92 : 1,
-              })}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <BoardIcon icon={b.icon} color={b.color} size={48} />
-                <View style={{ flex: 1 }}>
-                  <AppText variant="subtitle" numberOfLines={1}>
-                    {b.name}
-                  </AppText>
-                  {b.description ? (
-                    <AppText variant="caption" color="textSecondary" numberOfLines={1}>
-                      {b.description}
+            <ListItem key={b.id} index={i}>
+              <PressableScale
+                onPress={() => router.push({ pathname: '/board/[id]', params: { id: String(b.id) } })}
+                onLongPress={() => boardMenu(b)}
+                delayLongPress={350}
+                scaleTo={0.98}
+                style={{
+                  backgroundColor: c.surface,
+                  borderRadius: 22,
+                  borderWidth: 1,
+                  borderColor: c.border,
+                  overflow: 'hidden',
+                  elevation: theme.dark ? 0 : 1,
+                  shadowColor: '#1C1B2E',
+                  shadowOpacity: theme.dark ? 0 : 0.05,
+                  shadowRadius: 8,
+                  shadowOffset: { width: 0, height: 2 },
+                }}
+              >
+                {/* Pano renginde hafif zemin */}
+                <View style={{ backgroundColor: withAlpha(b.color, theme.dark ? 0.16 : 0.12), padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <BoardIcon icon={b.icon} color={b.color} size={48} />
+                  <View style={{ flex: 1 }}>
+                    <AppText variant="subtitle" numberOfLines={1}>
+                      {b.name}
                     </AppText>
-                  ) : null}
-                </View>
-                {b.overdue > 0 ? (
-                  <View style={{ backgroundColor: c.priority.high.bg, borderRadius: 8, paddingHorizontal: 8, height: 24, justifyContent: 'center' }}>
-                    <AppText variant="caption" color={c.priority.high.fg}>{`${b.overdue} gecikmiş`}</AppText>
+                    {b.description ? (
+                      <AppText variant="caption" color="textSecondary" numberOfLines={1}>
+                        {b.description}
+                      </AppText>
+                    ) : null}
                   </View>
-                ) : null}
-                <MaterialCommunityIcons name="chevron-right" size={24} color={c.textSecondary} />
-              </View>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16, marginBottom: 8 }}>
-                <AppText variant="caption" color="textSecondary">{`${b.done}/${b.total} görev tamamlandı`}</AppText>
-                <AppText variant="label" color="primary">{`%${Math.round(pct * 100)}`}</AppText>
-              </View>
-              <ProgressBar value={pct} />
-            </Pressable>
+                  <MaterialCommunityIcons name="chevron-right" size={24} color={c.textSecondary} />
+                </View>
+                <View style={{ padding: 16, paddingTop: 12 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                    <MetaChip icon="checkbox-blank-circle-outline" label={`${open} açık`} />
+                    <MetaChip icon="check-circle-outline" label={`${b.done} bitti`} />
+                    {b.overdue > 0 ? (
+                      <View style={{ backgroundColor: c.priority.high.bg, borderRadius: 8, paddingHorizontal: 8, height: 24, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                        <MaterialCommunityIcons name="alert-circle-outline" size={14} color={c.priority.high.fg} />
+                        <AppText variant="caption" color={c.priority.high.fg}>{`${b.overdue} gecikmiş`}</AppText>
+                      </View>
+                    ) : null}
+                    <View style={{ flex: 1 }} />
+                    <AppText variant="label" style={{ color: b.color }}>{`%${Math.round(pct * 100)}`}</AppText>
+                  </View>
+                  <ProgressBar value={pct} color={b.color} height={8} />
+                </View>
+              </PressableScale>
+            </ListItem>
           );
         })}
         <AppText variant="caption" color="textSecondary" style={{ textAlign: 'center', marginTop: 4 }}>

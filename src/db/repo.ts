@@ -1,6 +1,6 @@
 import { getDb } from './index';
 import { DEFAULT_LISTS, TemplateList } from './templates';
-import { addDays, addRepeat, startOfDay } from '../dates';
+import { addDays, addRepeat, diffDays, startOfDay } from '../dates';
 import type { PriorityKey } from '../theme';
 
 export type { TemplateList };
@@ -40,6 +40,7 @@ export type CardView = {
   board_id: number;
   title: string;
   description: string;
+  start_at: string | null;
   due_at: string | null;
   due_has_time: number;
   priority: PriorityKey;
@@ -47,6 +48,10 @@ export type CardView = {
   sort: number;
   repeat: Repeat;
   completed_at: string | null;
+  /** Tekrar eden görev tamamlanınca oluşturulan sonraki kopyanın id'si (geri alma için) */
+  next_id: number | null;
+  /** Odak zamanlayıcısıyla bu göreve harcanan dakika */
+  focus_minutes: number;
   list_name: string;
   list_is_done: number;
   board_name: string;
@@ -63,6 +68,8 @@ export type SaveCardInput = {
   list_id: number;
   title: string;
   description: string;
+  /** Tarih aralığının başı; null ise görev tek günlük */
+  start_at: string | null;
   due_at: string | null;
   due_has_time: boolean;
   priority: PriorityKey;
@@ -425,6 +432,7 @@ export async function saveCard(input: SaveCardInput): Promise<number> {
   const db = await getDb();
   let cardId = input.id ?? 0;
   let becameDone = false;
+  let becameUndone = false;
   const target = await getList(input.list_id);
   const done = input.done || !!target?.is_done;
   const nowIso = new Date().toISOString();
@@ -438,8 +446,9 @@ export async function saveCard(input: SaveCardInput): Promise<number> {
       let sort = prev?.sort ?? 0;
       if (prev && prev.list_id !== input.list_id) sort = await nextSort(input.list_id);
       becameDone = done && !prev?.done;
+      becameUndone = !done && !!prev?.done;
       await db.runAsync(
-        `UPDATE cards SET list_id = ?, title = ?, description = ?, due_at = ?, due_has_time = ?, priority = ?,
+        `UPDATE cards SET list_id = ?, title = ?, description = ?, start_at = ?, due_at = ?, due_has_time = ?, priority = ?,
            done = ?, repeat = ?, sort = ?,
            completed_at = CASE WHEN ? = 1 THEN COALESCE(completed_at, ?) ELSE NULL END
          WHERE id = ?`,
@@ -447,6 +456,7 @@ export async function saveCard(input: SaveCardInput): Promise<number> {
           input.list_id,
           input.title,
           input.description,
+          input.due_at ? input.start_at : null,
           input.due_at,
           input.due_has_time ? 1 : 0,
           input.priority,
@@ -461,12 +471,13 @@ export async function saveCard(input: SaveCardInput): Promise<number> {
     } else {
       const sort = await nextSort(input.list_id);
       const res = await db.runAsync(
-        `INSERT INTO cards (list_id, title, description, due_at, due_has_time, priority, done, repeat, sort, completed_at, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO cards (list_id, title, description, start_at, due_at, due_has_time, priority, done, repeat, sort, completed_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.list_id,
           input.title,
           input.description,
+          input.due_at ? input.start_at : null,
           input.due_at,
           input.due_has_time ? 1 : 0,
           input.priority,
@@ -485,6 +496,7 @@ export async function saveCard(input: SaveCardInput): Promise<number> {
   });
 
   if (becameDone) await spawnNext(cardId);
+  if (becameUndone) await undoSpawn(cardId);
   return cardId;
 }
 
@@ -499,10 +511,13 @@ async function spawnNext(cardId: number): Promise<void> {
   const { card, subtasks } = res;
   if (card.repeat === 'none' || !card.due_at) return;
 
-  let next = addRepeat(new Date(card.due_at), card.repeat);
+  const prevDue = new Date(card.due_at);
+  let next = addRepeat(prevDue, card.repeat);
   const today = startOfDay(new Date());
   let guard = 0;
   while (next < today && guard++ < 1000) next = addRepeat(next, card.repeat);
+  // Aralıklı görevlerde süre korunur
+  const nextStart = card.start_at ? addDays(new Date(card.start_at), diffDays(next, prevDue)) : null;
 
   const lists = await getLists(card.board_id);
   let listId = card.list_id;
@@ -512,11 +527,11 @@ async function spawnNext(cardId: number): Promise<void> {
     listId = open.id;
   }
 
-  await db.runAsync("UPDATE cards SET repeat = 'none' WHERE id = ?", [cardId]);
-  await saveCard({
+  const newId = await saveCard({
     list_id: listId,
     title: card.title,
     description: card.description,
+    start_at: nextStart ? nextStart.toISOString() : null,
     due_at: next.toISOString(),
     due_has_time: !!card.due_has_time,
     priority: card.priority,
@@ -525,6 +540,26 @@ async function spawnNext(cardId: number): Promise<void> {
     tags: card.tags,
     subtasks: subtasks.map((s) => ({ title: s.title, done: false })),
   });
+  // Seri yeni karttan devam eder; geri alınabilsin diye bağlantı saklanır
+  await db.runAsync("UPDATE cards SET repeat = 'none', next_id = ? WHERE id = ?", [newId, cardId]);
+}
+
+/**
+ * Tamamlama geri alınınca, o tamamlamayla oluşan sonraki kopya henüz
+ * tamamlanmadıysa silinir ve tekrar bilgisi asıl karta geri verilir.
+ * (Eskiden kopya kalıyordu; işaretle–geri al yaptıkça görev çoğalıyordu.)
+ */
+async function undoSpawn(cardId: number): Promise<void> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ next_id: number | null }>('SELECT next_id FROM cards WHERE id = ?', [cardId]);
+  if (!row?.next_id) return;
+  const next = await db.getFirstAsync<{ done: number; repeat: string }>('SELECT done, repeat FROM cards WHERE id = ?', [row.next_id]);
+  if (next && !next.done) {
+    await db.runAsync('DELETE FROM cards WHERE id = ?', [row.next_id]);
+    await db.runAsync('UPDATE cards SET repeat = ?, next_id = NULL WHERE id = ?', [next.repeat, cardId]);
+  } else {
+    await db.runAsync('UPDATE cards SET next_id = NULL WHERE id = ?', [cardId]);
+  }
 }
 
 export async function deleteCard(id: number): Promise<void> {
@@ -545,6 +580,7 @@ export async function duplicateCard(id: number): Promise<number | null> {
     list_id: listId,
     title: `${card.title} (kopya)`,
     description: card.description,
+    start_at: card.start_at,
     due_at: card.due_at,
     due_has_time: !!card.due_has_time,
     priority: card.priority,
@@ -597,6 +633,7 @@ export async function setCardDone(cardId: number, done: boolean): Promise<void> 
     await db.runAsync('UPDATE cards SET done = ?, completed_at = ? WHERE id = ?', [done ? 1 : 0, done ? now : null, cardId]);
   }
   if (done && !place.done) await spawnNext(cardId);
+  if (!done && place.done) await undoSpawn(cardId);
 }
 
 export async function moveCardToList(cardId: number, listId: number): Promise<void> {
@@ -616,6 +653,7 @@ export async function moveCardToList(cardId: number, listId: number): Promise<vo
     [listId, sort, done, done, now, cardId]
   );
   if (done && !place.done) await spawnNext(cardId);
+  if (!done && place.done) await undoSpawn(cardId);
 }
 
 export async function reorderCards(orderedIds: number[]): Promise<void> {
@@ -636,23 +674,30 @@ export type TodayData = {
   doneToday: CardView[];
 };
 
+/**
+ * Bugün ekranı verisi.
+ * - Gecikmiş: bitişi bugünden önce
+ * - Bugün: başlangıcı bugün ya da önce, bitişi bugün ya da sonra (aralıklı görevler "devam ediyor")
+ * - Yaklaşan: başlangıcı önümüzdeki 31 gün içinde (ekranda ayrıca filtrelenir)
+ */
 export async function getToday(now: Date = new Date()): Promise<TodayData> {
   const db = await getDb();
   const start = startOfDay(now);
   const startIso = start.toISOString();
-  const tomorrowIso = addDays(start, 1).toISOString();
-  const endIso = addDays(start, 8).toISOString(); // önümüzdeki 7 gün
+  const endIso = addDays(start, 32).toISOString();
 
   const rows = await db.getAllAsync<RawCard>(
-    `${CARD_SELECT} WHERE c.done = 0 AND c.due_at IS NOT NULL AND c.due_at < ? ORDER BY c.due_at, c.id`,
+    `${CARD_SELECT} WHERE c.done = 0 AND c.due_at IS NOT NULL AND COALESCE(c.start_at, c.due_at) < ?
+     ORDER BY COALESCE(c.start_at, c.due_at), c.due_at, c.id`,
     [endIso]
   );
   const data: TodayData = { overdue: [], today: [], upcoming: [], doneToday: [] };
   for (const r of rows) {
     const v = toView(r);
-    const due = v.due_at as string;
-    if (due < startIso) data.overdue.push(v);
-    else if (due < tomorrowIso) data.today.push(v);
+    const end = startOfDay(new Date(v.due_at as string));
+    const s = v.start_at ? startOfDay(new Date(v.start_at)) : end;
+    if (end < start) data.overdue.push(v);
+    else if (s <= start) data.today.push(v);
     else data.upcoming.push(v);
   }
   const doneRows = await db.getAllAsync<RawCard>(
@@ -663,13 +708,30 @@ export async function getToday(now: Date = new Date()): Promise<TodayData> {
   return data;
 }
 
+/** Aralığa değen (başlangıç–bitiş kesişen) kartlar */
 export async function getCardsBetween(start: Date, end: Date): Promise<CardView[]> {
   const db = await getDb();
   const rows = await db.getAllAsync<RawCard>(
-    `${CARD_SELECT} WHERE c.due_at IS NOT NULL AND c.due_at >= ? AND c.due_at < ? ORDER BY c.done, c.due_at, c.id`,
+    `${CARD_SELECT} WHERE c.due_at IS NOT NULL AND c.due_at >= ? AND COALESCE(c.start_at, c.due_at) < ?
+     ORDER BY c.done, c.due_at, c.id`,
     [start.toISOString(), end.toISOString()]
   );
   return rows.map(toView);
+}
+
+/** Gantt çizelgesi için tarihi olan tüm kartlar */
+export async function getDatedCards(): Promise<CardView[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<RawCard>(
+    `${CARD_SELECT} WHERE c.due_at IS NOT NULL ORDER BY b.sort, b.id, COALESCE(c.start_at, c.due_at), c.id`
+  );
+  return rows.map(toView);
+}
+
+/** Sadece tarihleri değiştirir (Gantt'tan sürükleme) */
+export async function updateCardDates(cardId: number, startIso: string | null, dueIso: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE cards SET start_at = ?, due_at = ? WHERE id = ?', [startIso, dueIso, cardId]);
 }
 
 /** Bildirimler için: tamamlanmamış, tarihi olan tüm kartlar */
@@ -699,4 +761,105 @@ export async function wipeAll(): Promise<void> {
     await db.runAsync('DELETE FROM boards');
     await db.runAsync('DELETE FROM tags');
   });
+}
+
+/* ================= Geri alma, odak, istatistik ================= */
+
+export type CardSnapshot = { card: CardView; subtasks: SubtaskRow[] };
+
+/** Silinen kartı "Geri al" ile yeniden oluşturur */
+export async function restoreCard(snap: CardSnapshot): Promise<number | null> {
+  const list = await getList(snap.card.list_id);
+  if (!list) return null;
+  const { card } = snap;
+  const id = await saveCard({
+    list_id: card.list_id,
+    title: card.title,
+    description: card.description,
+    start_at: card.start_at,
+    due_at: card.due_at,
+    due_has_time: !!card.due_has_time,
+    priority: card.priority,
+    done: false,
+    repeat: card.repeat,
+    tags: card.tags,
+    subtasks: snap.subtasks.map((s) => ({ title: s.title, done: !!s.done })),
+  });
+  const db = await getDb();
+  await db.runAsync('UPDATE cards SET done = ?, completed_at = ?, sort = ?, focus_minutes = ? WHERE id = ?', [
+    card.done,
+    card.completed_at,
+    card.sort,
+    card.focus_minutes ?? 0,
+    id,
+  ]);
+  return id;
+}
+
+export async function addFocusMinutes(cardId: number, minutes: number): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE cards SET focus_minutes = focus_minutes + ? WHERE id = ?', [Math.max(0, Math.round(minutes)), cardId]);
+}
+
+export type Stats = {
+  /** Son 7 gün (bugün sonda) tamamlanan görev sayıları */
+  week: { date: Date; count: number }[];
+  /** Arka arkaya en az bir görev tamamlanan gün sayısı (bugün ya da dünden geriye) */
+  streak: number;
+  bestStreak: number;
+  totalDone: number;
+  totalOpen: number;
+  overdue: number;
+  focusMinutes: number;
+  boards: { id: number; name: string; color: string; total: number; done: number }[];
+};
+
+export async function getStats(now: Date = new Date()): Promise<Stats> {
+  const db = await getDb();
+  const today = startOfDay(now);
+  const doneRows = await db.getAllAsync<{ completed_at: string | null }>('SELECT completed_at FROM cards WHERE done = 1');
+  const perDay = new Map<number, number>();
+  for (const r of doneRows) {
+    if (!r.completed_at) continue;
+    const t = startOfDay(new Date(r.completed_at)).getTime();
+    perDay.set(t, (perDay.get(t) ?? 0) + 1);
+  }
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = addDays(today, i - 6);
+    return { date: d, count: perDay.get(d.getTime()) ?? 0 };
+  });
+
+  // Seri: bugün henüz tamamlanan yoksa dünden saymaya başla
+  let streak = 0;
+  let d = perDay.has(today.getTime()) ? today : addDays(today, -1);
+  while (perDay.has(d.getTime())) {
+    streak++;
+    d = addDays(d, -1);
+  }
+  const days = [...perDay.keys()].sort((a, b) => a - b);
+  let bestStreak = 0;
+  let run = 0;
+  for (let i = 0; i < days.length; i++) {
+    run = i > 0 && days[i] - days[i - 1] <= 86400000 * 1.5 ? run + 1 : 1;
+    bestStreak = Math.max(bestStreak, run);
+  }
+
+  const totals = await db.getFirstAsync<{ open: number | null; done: number | null; focus: number | null }>(
+    'SELECT SUM(CASE WHEN done = 0 THEN 1 ELSE 0 END) AS open, SUM(done) AS done, SUM(focus_minutes) AS focus FROM cards'
+  );
+  const overdue = await db.getFirstAsync<{ n: number }>(
+    'SELECT COUNT(*) AS n FROM cards WHERE done = 0 AND due_at IS NOT NULL AND due_at < ?',
+    [today.toISOString()]
+  );
+  const boards = await listBoards();
+  return {
+    week,
+    streak,
+    bestStreak,
+    totalDone: totals?.done ?? 0,
+    totalOpen: totals?.open ?? 0,
+    overdue: overdue?.n ?? 0,
+    focusMinutes: totals?.focus ?? 0,
+    boards: boards.map((b) => ({ id: b.id, name: b.name, color: b.color, total: b.total, done: b.done })),
+  };
 }

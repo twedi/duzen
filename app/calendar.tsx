@@ -7,10 +7,10 @@ import { Button } from '../src/components/Button';
 import { TaskCard } from '../src/components/TaskCard';
 import { IconButton, ScreenHeader } from '../src/components/Form';
 import { useTheme } from '../src/ThemeContext';
-import { CardView, getCardsBetween, setCardDone } from '../src/db/repo';
+import { CardView, getCardsBetween } from '../src/db/repo';
 import { addDays, dayKey, isSameDay, longDate, monthGrid, monthTitle, startOfDay, WEEKDAYS_MON_FIRST } from '../src/dates';
-import { syncNotifications } from '../src/notifications';
-import { success, tap } from '../src/haptics';
+import { tap } from '../src/haptics';
+import { useTaskActions } from '../src/useTaskActions';
 
 export default function CalendarScreen() {
   const router = useRouter();
@@ -40,8 +40,14 @@ export default function CalendarScreen() {
     const m: Record<string, CardView[]> = {};
     for (const card of cards) {
       if (!card.due_at) continue;
-      const k = dayKey(new Date(card.due_at));
-      (m[k] ??= []).push(card);
+      // Aralıklı görevler aralıktaki her günde görünür
+      const end = startOfDay(new Date(card.due_at));
+      let d = card.start_at ? startOfDay(new Date(card.start_at)) : end;
+      let guard = 0;
+      while (d <= end && guard++ < 62) {
+        (m[dayKey(d)] ??= []).push(card);
+        d = addDays(d, 1);
+      }
     }
     return m;
   }, [cards]);
@@ -60,13 +66,7 @@ export default function CalendarScreen() {
     setSelected(today);
   };
 
-  const toggle = async (card: CardView) => {
-    if (!card.done) success();
-    else tap();
-    await setCardDone(card.id, !card.done);
-    await load();
-    syncNotifications();
-  };
+  const { toggle } = useTaskActions(load);
 
   const dayCards = byDay[dayKey(selected)] ?? [];
 

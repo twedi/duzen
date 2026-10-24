@@ -5,8 +5,8 @@ const TABLES: Record<string, { cols: string[]; defaults?: Record<string, unknown
   boards: { cols: ['id', 'name', 'description', 'color', 'icon', 'sort'], defaults: { description: '', sort: 0 } },
   lists: { cols: ['id', 'board_id', 'name', 'sort', 'is_done'], defaults: { sort: 0, is_done: 0 } },
   cards: {
-    cols: ['id', 'list_id', 'title', 'description', 'due_at', 'due_has_time', 'priority', 'done', 'sort', 'repeat', 'completed_at', 'created_at'],
-    defaults: { description: '', due_has_time: 0, priority: 'medium', done: 0, sort: 0, repeat: 'none' },
+    cols: ['id', 'list_id', 'title', 'description', 'due_at', 'due_has_time', 'priority', 'done', 'sort', 'repeat', 'completed_at', 'created_at', 'start_at', 'next_id', 'focus_minutes'],
+    defaults: { description: '', due_has_time: 0, priority: 'medium', done: 0, sort: 0, repeat: 'none', focus_minutes: 0 },
   },
   subtasks: { cols: ['id', 'card_id', 'title', 'done', 'sort'], defaults: { done: 0, sort: 0 } },
   tags: { cols: ['id', 'name'] },
@@ -25,7 +25,7 @@ export type BackupFile = {
 
 export async function exportAll(): Promise<string> {
   const db = await getDb();
-  const out: Record<string, unknown> = { app: 'duzen', version: 2, exportedAt: new Date().toISOString() };
+  const out: Record<string, unknown> = { app: 'duzen', version: 4, exportedAt: new Date().toISOString() };
   for (const t of [...DATA_ORDER, 'templates']) {
     out[t] = await db.getAllAsync(`SELECT * FROM ${t}`);
   }
@@ -39,7 +39,7 @@ export function parseBackup(text: string): BackupFile {
   } catch {
     throw new Error('Dosya okunamadı (geçerli bir JSON değil).');
   }
-  if (!data || data.app !== 'duzen' || (data.version !== 1 && data.version !== 2)) {
+  if (!data || data.app !== 'duzen' || ![1, 2, 3, 4].includes(data.version)) {
     throw new Error('Bu dosya Düzen yedeği gibi görünmüyor.');
   }
   for (const t of DATA_ORDER) {

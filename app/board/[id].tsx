@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import DraggableFlatList, { RenderItemParams, ScaleDecorator } from 'react-native-draggable-flatlist';
+import { ReorderableList } from '../../src/components/ReorderableList';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/AppText';
 import { TaskCard } from '../../src/components/TaskCard';
@@ -17,7 +17,6 @@ import {
   Board,
   CardView,
   deleteBoard,
-  deleteCard,
   deleteList,
   duplicateCard,
   getBoard,
@@ -29,11 +28,12 @@ import {
   renameList,
   reorderCards,
   saveBoardAsTemplate,
-  setCardDone,
   setDoneList,
 } from '../../src/db/repo';
 import { syncNotifications } from '../../src/notifications';
-import { impact, success, tap } from '../../src/haptics';
+import { impact, tap } from '../../src/haptics';
+import { useTaskActions } from '../../src/useTaskActions';
+import { withAlpha } from '../../src/colors';
 
 type SortMode = 'manual' | 'due' | 'priority';
 const SORT_LABEL: Record<SortMode, string> = { manual: 'Elle', due: 'Tarihe göre', priority: 'Önceliğe göre' };
@@ -105,14 +105,7 @@ export default function BoardScreen() {
   };
   const openCard = (cardId: number) => router.push({ pathname: '/card/[id]', params: { id: String(cardId) } });
 
-  const toggleDone = async (card: CardView) => {
-    const next = !card.done;
-    if (next) success();
-    else tap();
-    await setCardDone(card.id, next);
-    await load();
-    syncNotifications();
-  };
+  const { toggle: toggleDone, remove } = useTaskActions(load);
 
   const cardMenu = (card: CardView) => {
     impact();
@@ -158,19 +151,7 @@ export default function BoardScreen() {
           label: 'Sil',
           icon: 'trash-can-outline',
           danger: true,
-          onPress: () =>
-            Alert.alert('Kartı sil', `"${card.title}" silinecek.`, [
-              { text: 'Vazgeç', style: 'cancel' },
-              {
-                text: 'Sil',
-                style: 'destructive',
-                onPress: async () => {
-                  await deleteCard(card.id);
-                  await load();
-                  syncNotifications();
-                },
-              },
-            ]),
+          onPress: () => remove(card, true),
         },
       ],
     });
@@ -306,19 +287,16 @@ export default function BoardScreen() {
 
   /* ---------- Görünüm ---------- */
 
-  const renderItem = ({ item, drag, isActive }: RenderItemParams<CardView>) => (
-    <ScaleDecorator activeScale={1.03}>
-      <View style={{ marginBottom: 10 }}>
-        <TaskCard
-          card={item}
-          active={isActive}
-          onPress={() => openCard(item.id)}
-          onLongPress={() => cardMenu(item)}
-          onToggle={() => toggleDone(item)}
-          onDragHandle={sortMode === 'manual' && visible.length > 1 ? drag : undefined}
-        />
-      </View>
-    </ScaleDecorator>
+  const renderItem = (item: CardView, { dragHandle, active }: { dragHandle?: Record<string, any>; active: boolean }) => (
+    <TaskCard
+      card={item}
+      active={active}
+      onPress={() => openCard(item.id)}
+      onLongPress={() => cardMenu(item)}
+      onToggle={() => toggleDone(item)}
+      onDelete={() => remove(item)}
+      dragHandle={dragHandle}
+    />
   );
 
   const listEmpty = (
@@ -342,7 +320,8 @@ export default function BoardScreen() {
 
   return (
     <Screen>
-      {/* Üst bar */}
+      {/* Üst bar: pano renginde hafif zemin */}
+      <View style={{ backgroundColor: board ? withAlpha(board.color, theme.dark ? 0.16 : 0.12) : 'transparent', paddingBottom: 14, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingTop: 8, gap: 10 }}>
         <IconButton icon="arrow-left" onPress={() => router.back()} />
         {board ? <BoardIcon icon={board.icon} color={board.color} size={40} /> : null}
@@ -362,9 +341,10 @@ export default function BoardScreen() {
       {/* İlerleme */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 20, marginTop: 10 }}>
         <View style={{ flex: 1 }}>
-          <ProgressBar value={total ? doneCount / total : 0} />
+          <ProgressBar value={total ? doneCount / total : 0} color={board?.color} height={8} />
         </View>
         <AppText variant="label" color="primary">{`${doneCount}/${total} tamamlandı`}</AppText>
+      </View>
       </View>
 
       {/* Liste sekmeleri */}
@@ -444,16 +424,15 @@ export default function BoardScreen() {
       </View>
 
       {/* Kartlar */}
-      <DraggableFlatList
+      <ReorderableList
+        key={activeId ?? 0}
         data={visible}
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
-        onDragBegin={() => impact()}
-        onDragEnd={({ data }) => onDragEnd(data)}
-        containerStyle={{ flex: 1 }}
+        enabled={sortMode === 'manual' && visible.length > 1}
+        onReorder={onDragEnd}
         contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 2, paddingBottom: 120 }}
         ListEmptyComponent={listEmpty}
-        showsVerticalScrollIndicator={false}
       />
 
       {visible.length > 0 && !activeList?.is_done ? <Fab label="Kart ekle" onPress={addCard} /> : null}

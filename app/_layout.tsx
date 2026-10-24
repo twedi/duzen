@@ -15,6 +15,7 @@ import {
 import { ThemeProvider, useTheme } from '../src/ThemeContext';
 import { getDb } from '../src/db';
 import { syncNotifications } from '../src/notifications';
+import { ToastProvider } from '../src/components/Toast';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -26,8 +27,16 @@ function Navigator() {
         headerShown: false,
         contentStyle: { backgroundColor: theme.colors.background },
         animation: 'slide_from_right',
+        animationDuration: 260,
       }}
-    />
+    >
+      {/* Form ekranları alttan açılır, diğerleri sağdan kayar */}
+      <Stack.Screen name="card/[id]" options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="board/new" options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="templates/[id]" options={{ animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="focus/[id]" options={{ animation: 'fade_from_bottom' }} />
+      <Stack.Screen name="search" options={{ animation: 'fade' }} />
+    </Stack>
   );
 }
 
@@ -54,7 +63,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <Navigator />
+          <ToastProvider>
+            <Navigator />
+          </ToastProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

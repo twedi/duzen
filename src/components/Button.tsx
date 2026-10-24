@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleProp, View, ViewStyle } from 'react-native';
+import { StyleProp, View, ViewStyle } from 'react-native';
+import { PressableScale } from './Motion';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './AppText';
 import { useTheme } from '../ThemeContext';
@@ -27,11 +28,11 @@ export function Button({ label, onPress, icon, variant = 'primary', disabled, st
   }[variant];
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={disabled}
-      android_ripple={{ color: 'rgba(127,127,127,0.2)' }}
-      style={({ pressed }) => [
+      scaleTo={0.96}
+      style={[
         {
           height: 52,
           borderRadius: radius.md,
@@ -41,7 +42,7 @@ export function Button({ label, onPress, icon, variant = 'primary', disabled, st
           alignItems: 'center',
           justifyContent: 'center',
           flexDirection: 'row',
-          opacity: disabled ? 0.45 : pressed ? 0.85 : 1,
+          opacity: disabled ? 0.45 : 1,
         },
         style,
       ]}
@@ -52,6 +53,6 @@ export function Button({ label, onPress, icon, variant = 'primary', disabled, st
           {label}
         </AppText>
       </View>
-    </Pressable>
+    </PressableScale>
   );
 }

@@ -4,6 +4,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './AppText';
 import { useTheme } from '../ThemeContext';
 import { fonts } from '../theme';
+import Animated, { ZoomIn } from 'react-native-reanimated';
+import { PressableScale } from './Motion';
+import { tap } from '../haptics';
 
 export function FieldLabel({ children, style, right }: { children: string; style?: StyleProp<TextStyle>; right?: React.ReactNode }) {
   return (
@@ -115,40 +118,42 @@ export function IconButton({
   );
 }
 
-/** Sağ altta duran yuvarlak köşeli ekleme düğmesi */
+/** Sağ altta duran, açılışta büyüyerek beliren ekleme düğmesi */
 export function Fab({ label, onPress, icon = 'plus' }: { label?: string; onPress: () => void; icon?: keyof typeof MaterialCommunityIcons.glyphMap }) {
   const { theme } = useTheme();
   const c = theme.colors;
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => ({
-        position: 'absolute',
-        right: 16,
-        bottom: 20,
-        height: 56,
-        minWidth: 56,
-        paddingHorizontal: label ? 20 : 0,
-        borderRadius: 18,
-        backgroundColor: c.primary,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        elevation: 6,
-        shadowColor: '#000',
-        shadowOpacity: 0.2,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 4 },
-        opacity: pressed ? 0.9 : 1,
-      })}
-    >
-      <MaterialCommunityIcons name={icon} size={24} color={c.onPrimary} />
-      {label ? (
-        <AppText variant="body" color="onPrimary">
-          {label}
-        </AppText>
-      ) : null}
-    </Pressable>
+    <Animated.View entering={ZoomIn.springify().damping(14).delay(120)} style={{ position: 'absolute', right: 16, bottom: 20 }}>
+      <PressableScale
+        onPress={() => {
+          tap();
+          onPress();
+        }}
+        scaleTo={0.92}
+        style={{
+          height: 58,
+          minWidth: 58,
+          paddingHorizontal: label ? 22 : 0,
+          borderRadius: 20,
+          backgroundColor: c.primary,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          elevation: 8,
+          shadowColor: c.primary,
+          shadowOpacity: 0.35,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 6 },
+        }}
+      >
+        <MaterialCommunityIcons name={icon} size={24} color={c.onPrimary} />
+        {label ? (
+          <AppText variant="body" color="onPrimary">
+            {label}
+          </AppText>
+        ) : null}
+      </PressableScale>
+    </Animated.View>
   );
 }

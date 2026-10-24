@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AppText } from './AppText';
 import { Button } from './Button';
 import { useTheme } from '../ThemeContext';
+import { FadeInUp, Floating } from './Motion';
 
 type Props = {
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
@@ -20,7 +21,8 @@ export function EmptyState({ icon, title, text, buttonLabel, buttonIcon = 'plus'
   const { theme } = useTheme();
   const c = theme.colors;
   return (
-    <View style={{ flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 48 }}>
+    <FadeInUp style={{ flex: 1, alignItems: 'center', paddingHorizontal: 24, paddingTop: 48 }}>
+      <Floating>
       <View
         style={{
           width: 128,
@@ -37,6 +39,7 @@ export function EmptyState({ icon, title, text, buttonLabel, buttonIcon = 'plus'
         </View>
         <View style={{ position: 'absolute', top: 10, right: 6, width: 12, height: 12, borderRadius: 6, backgroundColor: c.primary }} />
       </View>
+      </Floating>
       <AppText variant="title" style={{ textAlign: 'center' }}>
         {title}
       </AppText>
@@ -49,7 +52,7 @@ export function EmptyState({ icon, title, text, buttonLabel, buttonIcon = 'plus'
           {footer}
         </AppText>
       ) : null}
-    </View>
+    </FadeInUp>
   );
 }
 

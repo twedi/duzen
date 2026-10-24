@@ -77,6 +77,7 @@ export const darkTheme: Theme = {
 };
 
 // Pano renkleri iki temada da aynı
+// Hazır renkler (ayrıca renk spektrumundan istenen her renk seçilebilir)
 export const BOARD_COLORS = [
   '#8579E8',
   '#B49AD8',
@@ -84,6 +85,12 @@ export const BOARD_COLORS = [
   '#7DAE92',
   '#85A2B6',
   '#9A99A8',
+  '#E5737F',
+  '#EE8FC0',
+  '#E9B949',
+  '#4FB3A9',
+  '#5B9BE6',
+  '#A78B71',
 ];
 
 export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 };

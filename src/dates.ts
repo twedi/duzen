@@ -134,3 +134,50 @@ export function addRepeat(d: Date, repeat: string): Date {
   }
   return x;
 }
+
+/** "7 Eki – 11 Eki" (yıl farklıysa yıl da yazılır) */
+export function rangeText(s: Date, e: Date, now: Date = new Date()): string {
+  const fmt = (d: Date) => (d.getFullYear() === now.getFullYear() ? shortDate(d) : `${shortDate(d)} ${d.getFullYear()}`);
+  return `${fmt(s)} – ${fmt(e)}`;
+}
+
+/** Başlangıç ve bitiş dahil gün sayısı */
+export function spanDays(s: Date, e: Date): number {
+  return diffDays(e, s) + 1;
+}
+
+/** Tarih aralıklı görevler için etiket; aralık yoksa dueInfo ile aynı */
+export function dueInfoRange(
+  startIso: string | null,
+  dueIso: string,
+  hasTime: boolean,
+  done: boolean,
+  now: Date = new Date()
+): { label: string; tone: DueTone } {
+  const e = new Date(dueIso);
+  if (!startIso) return dueInfo(dueIso, hasTime, done, now);
+  const s = new Date(startIso);
+  if (isSameDay(s, e)) return dueInfo(dueIso, hasTime, done, now);
+  const base = rangeText(s, e, now);
+  if (done) return { label: base, tone: 'done' };
+  const toEnd = diffDays(e, now);
+  const toStart = diffDays(s, now);
+  if (toEnd < 0) return { label: `${base} · ${-toEnd} gün gecikti`, tone: 'overdue' };
+  if (toStart <= 0) return { label: `${base} · ${toEnd === 0 ? 'bugün bitiyor' : `${toEnd} gün kaldı`}`, tone: 'today' };
+  return { label: base, tone: toStart <= 7 ? 'soon' : 'later' };
+}
+
+/** Kart formundaki hızlı aralık seçenekleri */
+export function quickRanges(now: Date = new Date()): { key: string; label: string; start: Date; end: Date }[] {
+  const today = startOfDay(now);
+  const dow = today.getDay();
+  const toSunday = (7 - dow) % 7;
+  const toMonday = (1 - dow + 7) % 7 || 7;
+  const nextMon = addDays(today, toMonday);
+  return [
+    { key: 'week', label: 'Bu hafta', start: today, end: addDays(today, toSunday) },
+    { key: 'nextweek', label: 'Gelecek hafta', start: nextMon, end: addDays(nextMon, 6) },
+    { key: '3d', label: '3 gün', start: today, end: addDays(today, 2) },
+    { key: '7d', label: '7 gün', start: today, end: addDays(today, 6) },
+  ];
+}

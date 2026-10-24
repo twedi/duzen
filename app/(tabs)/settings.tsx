@@ -220,6 +220,20 @@ export default function SettingsScreen() {
           <MaterialCommunityIcons name="chevron-right" size={22} color={c.textSecondary} />
         </Pressable>
 
+        <Pressable
+          onPress={() => router.push('/stats')}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.surface, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 16, marginTop: 10 }}
+        >
+          <MaterialCommunityIcons name="chart-box-outline" size={22} color={c.primary} />
+          <View style={{ flex: 1 }}>
+            <AppText variant="body">İstatistikler</AppText>
+            <AppText variant="caption" color="textSecondary">
+              Seri, haftalık grafik, odak süresi
+            </AppText>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={22} color={c.textSecondary} />
+        </Pressable>
+
         <Section>VERİLERİN SENDE</Section>
         <AppText variant="small" color="textSecondary" style={{ marginBottom: 12 }}>
           {`${counts.boards} panonu ve ${counts.cards} görevini dosya olarak sakla ya da daha önce aldığın yedeği geri yükle.`}

@@ -8,10 +8,9 @@ import { TaskCard } from '../src/components/TaskCard';
 import { ChoiceChip } from '../src/components/Chips';
 import { BoardIcon } from '../src/components/Pickers';
 import { useTheme } from '../src/ThemeContext';
-import { BoardSummary, CardView, getAllCards, listBoards, setCardDone } from '../src/db/repo';
+import { BoardSummary, CardView, getAllCards, listBoards } from '../src/db/repo';
 import { fonts } from '../src/theme';
-import { syncNotifications } from '../src/notifications';
-import { success, tap } from '../src/haptics';
+import { useTaskActions } from '../src/useTaskActions';
 
 type Filter = 'all' | 'open' | 'done';
 const norm = (s: string) => s.toLocaleLowerCase('tr-TR');
@@ -57,13 +56,7 @@ export default function SearchScreen() {
     });
   }, [cards, query, filter]);
 
-  const toggle = async (card: CardView) => {
-    if (!card.done) success();
-    else tap();
-    await setCardDone(card.id, !card.done);
-    await load();
-    syncNotifications();
-  };
+  const { toggle } = useTaskActions(load);
 
   return (
     <Screen>

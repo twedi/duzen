@@ -27,7 +27,21 @@ import {
   Repeat,
   saveCard,
 } from '../../src/db/repo';
-import { formatHm, isSameDay, longDate, parseDayKey, quickDates, relativeDay, shortDate, startOfDay, timeText } from '../../src/dates';
+import {
+  addDays,
+  formatHm,
+  isSameDay,
+  longDate,
+  parseDayKey,
+  quickDates,
+  quickRanges,
+  rangeText,
+  relativeDay,
+  shortDate,
+  spanDays,
+  startOfDay,
+  timeText,
+} from '../../src/dates';
 import { syncNotifications } from '../../src/notifications';
 import { fonts, PriorityKey } from '../../src/theme';
 import { success, tap } from '../../src/haptics';
@@ -62,6 +76,8 @@ export default function CardScreen() {
   const [description, setDescription] = useState('');
   const [done, setDone] = useState(false);
   const [due, setDue] = useState<Date | null>(null);
+  const [start, setStart] = useState<Date | null>(null);
+  const [rangeMode, setRangeMode] = useState(false);
   const [hasTime, setHasTime] = useState(false);
   const [priority, setPriority] = useState<PriorityKey>('medium');
   const [repeat, setRepeat] = useState<Repeat>('none');
@@ -71,6 +87,7 @@ export default function CardScreen() {
   const [tagText, setTagText] = useState('');
   const [subs, setSubs] = useState<Sub[]>([]);
   const [subText, setSubText] = useState('');
+  const [focusMinutes, setFocusMinutes] = useState(0);
 
   const applyBoard = (b: Board, ls: ListRow[], preferList?: number) => {
     setBoard(b);
@@ -119,9 +136,14 @@ export default function CardScreen() {
         const b = await getBoard(card.board_id);
         if (b) applyBoard(b, await getLists(b.id), card.list_id);
         setTitle(card.title);
+        setFocusMinutes(card.focus_minutes ?? 0);
         setDescription(card.description);
         setDone(!!card.done);
         setDue(card.due_at ? new Date(card.due_at) : null);
+        if (card.start_at && card.due_at) {
+          setStart(startOfDay(new Date(card.start_at)));
+          setRangeMode(true);
+        }
         setHasTime(!!card.due_has_time);
         setPriority(card.priority);
         setRepeat(card.repeat);
@@ -206,6 +228,8 @@ export default function CardScreen() {
   const clearDue = () => {
     tap();
     setDue(null);
+    setStart(null);
+    setRangeMode(false);
     setHasTime(false);
     setRepeat('none');
   };
@@ -215,6 +239,55 @@ export default function CardScreen() {
     if (r !== 'none' && !due) setDay(new Date());
   };
 
+  /** Bitiş gününü değiştirir, saat bilgisini korur */
+  const setEndDay = (d: Date, keep: Date | null = due) => {
+    const x = new Date(d);
+    if (hasTime && keep) x.setHours(keep.getHours(), keep.getMinutes(), 0, 0);
+    else x.setHours(0, 0, 0, 0);
+    setDue(x);
+  };
+
+  const setRange = (on: boolean) => {
+    if (on) {
+      const s = startOfDay(due ?? new Date());
+      setStart(s);
+      if (!due || startOfDay(due) <= s) setEndDay(addDays(s, 2));
+      setRangeMode(true);
+    } else {
+      setStart(null);
+      setRangeMode(false);
+    }
+  };
+
+  const applyRange = (s: Date, e: Date) => {
+    setStart(startOfDay(s));
+    setEndDay(e);
+  };
+
+  const pickStart = () =>
+    DateTimePickerAndroid.open({
+      value: start ?? new Date(),
+      mode: 'date',
+      onChange: (ev, d) => {
+        if (ev.type !== 'set' || !d) return;
+        const s = startOfDay(d);
+        setStart(s);
+        if (!due || startOfDay(due) < s) setEndDay(s);
+      },
+    });
+
+  const pickEnd = () =>
+    DateTimePickerAndroid.open({
+      value: due ?? start ?? new Date(),
+      mode: 'date',
+      onChange: (ev, d) => {
+        if (ev.type !== 'set' || !d) return;
+        setEndDay(d);
+        if (start && startOfDay(d) < start) setStart(startOfDay(d));
+      },
+    });
+
+  const qRanges = quickRanges();
   const quick = quickDates();
   const quickMatch = due ? quick.find((q) => isSameDay(q.date, due)) : undefined;
   const presetMatch = hasTime && due ? TIME_PRESETS.find(([h, m]) => due.getHours() === h && due.getMinutes() === m) : undefined;
@@ -251,6 +324,7 @@ export default function CardScreen() {
       list_id: listId,
       title: title.trim(),
       description: description.trim(),
+      start_at: rangeMode && start && due && startOfDay(due) > startOfDay(start) ? startOfDay(start).toISOString() : null,
       due_at: due ? due.toISOString() : null,
       due_has_time: !!due && hasTime,
       priority,
@@ -294,7 +368,14 @@ export default function CardScreen() {
         <ScreenHeader
           title={isNew ? 'Yeni kart' : 'Kartı düzenle'}
           onBack={() => router.back()}
-          right={!isNew ? <IconButton icon="content-copy" onPress={duplicate} /> : undefined}
+          right={
+            !isNew ? (
+              <View style={{ flexDirection: 'row' }}>
+                <IconButton icon="timer-outline" tone="tonal" onPress={() => router.push({ pathname: '/focus/[id]', params: { id: String(params.id) } })} />
+                <IconButton icon="content-copy" onPress={duplicate} />
+              </View>
+            ) : undefined
+          }
         />
 
         <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
@@ -334,6 +415,11 @@ export default function CardScreen() {
               Tamamlandı olarak işaretli
             </AppText>
           ) : null}
+          {focusMinutes > 0 ? (
+            <AppText variant="caption" color="textSecondary" style={{ marginLeft: 42, marginTop: 2 }}>
+              {`Bu göreve ${focusMinutes} dakika odaklandın`}
+            </AppText>
+          ) : null}
 
           {/* Açıklama */}
           <Surface style={{ padding: 12, marginTop: 14 }}>
@@ -366,36 +452,92 @@ export default function CardScreen() {
               ) : undefined
             }
           >
-            Bitiş tarihi
+            Tarih
           </FieldLabel>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-            {quick.map((q) => (
-              <ChoiceChip key={q.key} label={q.label} selected={quickMatch?.key === q.key} onPress={() => setDay(q.date)} />
-            ))}
-            <ChoiceChip
-              label={due && !quickMatch ? shortDate(due) : 'Tarih seç'}
-              icon="calendar-month-outline"
-              selected={!!due && !quickMatch}
-              onPress={pickCustomDate}
-            />
-          </ScrollView>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+            <ChoiceChip label="Tek gün" icon="calendar-today" selected={!rangeMode} onPress={() => setRange(false)} />
+            <ChoiceChip label="Tarih aralığı" icon="arrow-expand-horizontal" selected={rangeMode} onPress={() => setRange(true)} />
+          </View>
+
+          {!rangeMode ? (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              {quick.map((q) => (
+                <ChoiceChip key={q.key} label={q.label} selected={quickMatch?.key === q.key} onPress={() => setDay(q.date)} />
+              ))}
+              <ChoiceChip
+                label={due && !quickMatch ? shortDate(due) : 'Tarih seç'}
+                icon="calendar-month-outline"
+                selected={!!due && !quickMatch}
+                onPress={pickCustomDate}
+              />
+            </ScrollView>
+          ) : (
+            <>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {qRanges.map((r) => (
+                  <ChoiceChip
+                    key={r.key}
+                    label={r.label}
+                    selected={!!start && !!due && isSameDay(start, r.start) && isSameDay(due, r.end)}
+                    onPress={() => applyRange(r.start, r.end)}
+                  />
+                ))}
+              </ScrollView>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 12 }}>
+                <Pressable onPress={pickStart} style={{ flex: 1 }}>
+                  <Surface style={{ padding: 12 }}>
+                    <AppText variant="caption" color="textSecondary">
+                      Başlangıç
+                    </AppText>
+                    <AppText variant="body" style={{ marginTop: 2 }}>
+                      {start ? shortDate(start) : 'Seç'}
+                    </AppText>
+                    <AppText variant="caption" color="textSecondary">
+                      {start ? relativeDay(start) : ' '}
+                    </AppText>
+                  </Surface>
+                </Pressable>
+                <MaterialCommunityIcons name="arrow-right" size={20} color={c.textSecondary} />
+                <Pressable onPress={pickEnd} style={{ flex: 1 }}>
+                  <Surface style={{ padding: 12 }}>
+                    <AppText variant="caption" color="textSecondary">
+                      Bitiş
+                    </AppText>
+                    <AppText variant="body" style={{ marginTop: 2 }}>
+                      {due ? shortDate(due) : 'Seç'}
+                    </AppText>
+                    <AppText variant="caption" color="textSecondary">
+                      {due ? relativeDay(due) : ' '}
+                    </AppText>
+                  </Surface>
+                </Pressable>
+              </View>
+            </>
+          )}
 
           {due ? (
             <Surface style={{ marginTop: 12, padding: 14 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: c.primaryContainer, alignItems: 'center', justifyContent: 'center' }}>
-                  <MaterialCommunityIcons name="calendar-month-outline" size={24} color={c.onPrimaryContainer} />
+                  <MaterialCommunityIcons
+                    name={rangeMode ? 'calendar-range' : 'calendar-month-outline'}
+                    size={24}
+                    color={c.onPrimaryContainer}
+                  />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <AppText variant="body">{longDate(due)}</AppText>
+                  <AppText variant="body">
+                    {rangeMode && start ? `${rangeText(start, due)} · ${spanDays(start, due)} gün` : longDate(due)}
+                  </AppText>
                   <AppText variant="small" color="textSecondary">
-                    {relativeDay(due) + (hasTime ? ` · saat ${timeText(due)}` : ' · saat belirtilmedi')}
+                    {(rangeMode && start ? `${relativeDay(start)} başlıyor` : relativeDay(due)) +
+                      (hasTime ? ` · bitiş saati ${timeText(due)}` : ' · saat belirtilmedi')}
                   </AppText>
                 </View>
               </View>
 
               <AppText variant="label" color="textSecondary" style={{ marginTop: 14, marginBottom: 8 }}>
-                Saat
+                {rangeMode ? 'Bitiş saati' : 'Saat'}
               </AppText>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                 <ChoiceChip label="Saat yok" selected={!hasTime} onPress={clearTime} />
