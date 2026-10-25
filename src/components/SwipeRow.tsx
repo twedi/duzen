@@ -15,7 +15,7 @@ type Props = {
   leftLabel?: string;
 };
 
-const THRESHOLD = 0.32;
+const THRESHOLD = 0.38;
 
 /**
  * Kartı yana kaydırarak hızlı işlem: sağa = tamamla, sola = sil.
@@ -32,7 +32,8 @@ export function SwipeRow({ children, onSwipeRight, rightLabel = 'Tamamla', onSwi
 
   const responder = useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 14 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      // Dikey kaydırırken yanlışlıkla tetiklenmesin: belirgin ve yatay bir hareket gerekir
+      onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 22 && Math.abs(g.dx) > Math.abs(g.dy) * 2.5,
       onPanResponderTerminationRequest: () => false,
       onShouldBlockNativeResponder: () => true,
       onPanResponderGrant: () => {

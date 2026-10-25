@@ -5,22 +5,25 @@ import { parseHm } from './dates';
 
 const CHANNEL_ID = 'duzen-reminders';
 
-// Expo Go bildirim modülünü içermiyor. Geliştirirken false kalsın;
-// APK (gerçek build) üretmeden önce true yap.
-const NOTIFICATIONS_ENABLED = true;
+// Bildirim modülünün çalışması için gereken yerel (native) parçalar.
+// Expo Go'da bunlar yok; APK'da var. Elle açıp kapatmaya gerek kalmasın diye uygulama kendisi bakar.
+const REQUIRED_NATIVE_MODULES = ['ExpoTopicSubscriptionModule'];
 
-// expo-notifications, Expo Go'da (özellikle Android) her zaman yüklenemeyebiliyor.
-// Bu yüzden import'u erteliyoruz; modül yoksa uygulama çökmez, bildirimler sadece kapalı kalır.
+function nativeModulesAvailable(): boolean {
+  try {
+    const { requireOptionalNativeModule } = require('expo-modules-core');
+    return REQUIRED_NATIVE_MODULES.every((name) => !!requireOptionalNativeModule(name));
+  } catch {
+    return false;
+  }
+}
+
 let cached: any = undefined;
 
 function getNotifications(): any | null {
   if (cached !== undefined) return cached;
-  if (!NOTIFICATIONS_ENABLED) {
-    cached = null;
-    return cached;
-  }
-  // Expo Go'da bu modülün yerel kısmı yok; yüklemeye çalışmak kırmızı hata ekranı çıkarır.
-  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient) {
+  // Expo Go'da (ya da modül eksikse) bildirimler sessizce kapalı kalır, uygulama çökmez
+  if (Constants.executionEnvironment === ExecutionEnvironment.StoreClient || !nativeModulesAvailable()) {
     cached = null;
     return cached;
   }

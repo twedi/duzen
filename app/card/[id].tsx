@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useKeyboardHeight, useRevealOnFocus } from '../../src/useKeyboard';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
@@ -88,6 +90,8 @@ export default function CardScreen() {
   const [subs, setSubs] = useState<Sub[]>([]);
   const [subText, setSubText] = useState('');
   const [focusMinutes, setFocusMinutes] = useState(0);
+  const kb = useKeyboardHeight();
+  const scroll = useRevealOnFocus();
 
   const applyBoard = (b: Board, ls: ListRow[], preferList?: number) => {
     setBoard(b);
@@ -364,12 +368,14 @@ export default function CardScreen() {
 
   return (
     <Screen bottomInset>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardSafeView>
         <ScreenHeader
           title={isNew ? 'Yeni kart' : 'Kartı düzenle'}
           onBack={() => router.back()}
           right={
-            !isNew ? (
+            kb > 0 ? (
+              <IconButton icon="check" tone="tonal" onPress={save} />
+            ) : !isNew ? (
               <View style={{ flexDirection: 'row' }}>
                 <IconButton icon="timer-outline" tone="tonal" onPress={() => router.push({ pathname: '/focus/[id]', params: { id: String(params.id) } })} />
                 <IconButton icon="content-copy" onPress={duplicate} />
@@ -378,7 +384,11 @@ export default function CardScreen() {
           }
         />
 
-        <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }} keyboardShouldPersistTaps="handled">
+        <ScrollView
+          ref={scroll.ref}
+          contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Konum */}
           {board ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
@@ -422,6 +432,7 @@ export default function CardScreen() {
           ) : null}
 
           {/* Açıklama */}
+          <View onLayout={scroll.track('desc')} />
           <Surface style={{ padding: 12, marginTop: 14 }}>
             <AppText variant="caption" color="textSecondary">
               Açıklama
@@ -429,6 +440,7 @@ export default function CardScreen() {
             <TextInput
               value={description}
               onChangeText={setDescription}
+              onFocus={() => scroll.reveal('desc')}
               placeholder="İstersen not ekle"
               placeholderTextColor={c.textSecondary}
               multiline
@@ -594,6 +606,7 @@ export default function CardScreen() {
           </ScrollView>
 
           {/* Etiketler */}
+          <View onLayout={scroll.track('tags')} />
           <FieldLabel>Etiketler</FieldLabel>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
             {tags.map((t) => (
@@ -605,6 +618,7 @@ export default function CardScreen() {
                 value={tagText}
                 onChangeText={setTagText}
                 onSubmitEditing={() => addTag(tagText)}
+                onFocus={() => scroll.reveal('tags')}
                 onBlur={() => (tagText.trim() ? addTag(tagText) : setAddingTag(false))}
                 placeholder="etiket adı"
                 placeholderTextColor={c.textSecondary}
@@ -637,6 +651,7 @@ export default function CardScreen() {
           ) : null}
 
           {/* Alt görevler */}
+          <View onLayout={scroll.track('subs')} />
           <FieldLabel
             right={
               subs.length > 0 ? (
@@ -652,7 +667,11 @@ export default function CardScreen() {
             </View>
           ) : null}
           {subs.map((s) => (
-            <View key={s.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border }}>
+            <View
+              key={s.key}
+              onLayout={scroll.track(`sub-${s.key}`)}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: c.border }}
+            >
               <Checkbox
                 checked={s.done}
                 onPress={() => {
@@ -663,6 +682,7 @@ export default function CardScreen() {
               <TextInput
                 value={s.title}
                 onChangeText={(v) => setSubs(subs.map((x) => (x.key === s.key ? { ...x, title: v } : x)))}
+                onFocus={() => scroll.reveal(`sub-${s.key}`, 200)}
                 style={{
                   flex: 1,
                   color: s.done ? c.textSecondary : c.text,
@@ -677,12 +697,16 @@ export default function CardScreen() {
               </Pressable>
             </View>
           ))}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
+          <View onLayout={scroll.track('subinput')} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 8 }}>
             <MaterialCommunityIcons name="plus" size={24} color={c.primary} />
             <TextInput
               value={subText}
               onChangeText={setSubText}
-              onSubmitEditing={addSub}
+              onSubmitEditing={() => {
+                addSub();
+                scroll.reveal('subinput', 260);
+              }}
+              onFocus={() => scroll.reveal('subinput', 260)}
               placeholder="Alt görev ekle"
               placeholderTextColor={c.primary}
               returnKeyType="done"
@@ -699,12 +723,14 @@ export default function CardScreen() {
           </View>
         </ScrollView>
 
-        {/* Alt butonlar */}
+        {/* Alt butonlar (klavye açıkken gizlenir, yazılan alanı kapatmasın) */}
+        {kb === 0 ? (
         <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12, borderTopWidth: 1, borderTopColor: c.border }}>
           {!isNew ? <Button label="Sil" icon="trash-can-outline" variant="danger" onPress={remove} style={{ flex: 1 }} /> : null}
           <Button label={isNew ? 'Kartı ekle' : 'Kaydet'} icon={isNew ? 'plus' : 'check'} onPress={save} style={{ flex: 2 }} />
         </View>
-      </KeyboardAvoidingView>
+        ) : null}
+      </KeyboardSafeView>
     </Screen>
   );
 }

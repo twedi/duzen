@@ -380,7 +380,7 @@ export default function TimelineScreen() {
                           tap();
                           setSelectedId(card.id);
                         }}
-                        onOpen={() => router.push({ pathname: '/card/[id]', params: { id: String(card.id) } })}
+                        onOpen={() => router.push({ pathname: '/task/[id]', params: { id: String(card.id) } })}
                         onDragStart={() => setDragging(true)}
                         onDrag={(mode, d) => onDrag(card, mode, d)}
                         onDragEnd={(mode, d) => onDragEnd(card, mode, d)}
@@ -425,7 +425,7 @@ export default function TimelineScreen() {
                 label="Aç"
                 icon="open-in-new"
                 selected
-                onPress={() => router.push({ pathname: '/card/[id]', params: { id: String(selected.id) } })}
+                onPress={() => router.push({ pathname: '/task/[id]', params: { id: String(selected.id) } })}
               />
             </View>
             <AppText variant="caption" color="textSecondary" style={{ marginTop: 10 }}>

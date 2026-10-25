@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
@@ -12,6 +13,7 @@ import { BOARD_COLORS, fonts } from '../../src/theme';
 import { DEFAULT_LISTS } from '../../src/db/templates';
 import { deleteTemplate, getTemplateById, saveTemplate } from '../../src/db/repo';
 import { tap } from '../../src/haptics';
+import { useKeyboardHeight, useRevealOnFocus } from '../../src/useKeyboard';
 
 type Row = { key: string; name: string; done: boolean };
 let k = 0;
@@ -30,6 +32,8 @@ export default function TemplateEditScreen() {
   const [icon, setIcon] = useState('view-dashboard-outline');
   const [rows, setRows] = useState<Row[]>(DEFAULT_LISTS.map((l) => ({ key: nk(), ...l })));
   const [newRow, setNewRow] = useState('');
+  const kb = useKeyboardHeight();
+  const scroll = useRevealOnFocus();
 
   useEffect(() => {
     if (isNew) return;
@@ -104,7 +108,8 @@ export default function TemplateEditScreen() {
   return (
     <Screen bottomInset>
       <ScreenHeader title={isNew ? 'Yeni şablon' : 'Şablonu düzenle'} onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+      <KeyboardSafeView>
+      <ScrollView ref={scroll.ref} contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
         <FieldLabel>Şablon adı</FieldLabel>
         <Input value={name} onChangeText={setName} placeholder="ör. Haftalık plan" />
 
@@ -117,6 +122,7 @@ export default function TemplateEditScreen() {
         <FieldLabel>Simge</FieldLabel>
         <IconPicker value={icon} onChange={setIcon} color={color} />
 
+        <View onLayout={scroll.track('lists')} />
         <FieldLabel>Listeler</FieldLabel>
         <Surface>
           {rows.map((r, idx) => (
@@ -143,6 +149,7 @@ export default function TemplateEditScreen() {
               <TextInput
                 value={r.name}
                 onChangeText={(v) => update(r.key, { name: v })}
+                onFocus={() => scroll.reveal('lists', 60)}
                 placeholder="Liste adı"
                 placeholderTextColor={c.textSecondary}
                 style={{ flex: 1, color: c.text, fontFamily: fonts.medium, fontSize: 15, paddingVertical: 8 }}
@@ -169,6 +176,7 @@ export default function TemplateEditScreen() {
               value={newRow}
               onChangeText={setNewRow}
               onSubmitEditing={addRow}
+              onFocus={scroll.revealEnd}
               blurOnSubmit={false}
               returnKeyType="done"
               placeholder="Liste ekle"
@@ -190,10 +198,13 @@ export default function TemplateEditScreen() {
         </AppText>
       </ScrollView>
 
+      {kb === 0 ? (
       <View style={{ flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
         {!isNew ? <Button label="Sil" icon="trash-can-outline" variant="danger" onPress={remove} style={{ flex: 1 }} /> : null}
         <Button label="Kaydet" icon="check" onPress={save} style={{ flex: 2 }} />
       </View>
+      ) : null}
+      </KeyboardSafeView>
     </Screen>
   );
 }

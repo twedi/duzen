@@ -2,6 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { KeyboardSafeView } from '../../src/components/KeyboardSafeView';
 import { Screen } from '../../src/components/Screen';
 import { AppText } from '../../src/components/AppText';
 import { Button } from '../../src/components/Button';
@@ -12,6 +13,7 @@ import { BOARD_COLORS } from '../../src/theme';
 import { DEFAULT_LISTS } from '../../src/db/templates';
 import { createBoard, getBoard, listTemplates, TemplateRow, updateBoard } from '../../src/db/repo';
 import { tap } from '../../src/haptics';
+import { useKeyboardHeight } from '../../src/useKeyboard';
 
 /** Yeni pano oluşturma; `id` parametresi gelirse mevcut panoyu düzenler. */
 export default function BoardFormScreen() {
@@ -28,6 +30,7 @@ export default function BoardFormScreen() {
   const [color, setColor] = useState(BOARD_COLORS[0]);
   const [icon, setIcon] = useState('view-dashboard-outline');
   const loadedBoard = useRef(false);
+  const kb = useKeyboardHeight();
   const pickedTemplate = useRef(false);
 
   const chooseTemplate = (t: TemplateRow) => {
@@ -96,6 +99,7 @@ export default function BoardFormScreen() {
   return (
     <Screen bottomInset>
       <ScreenHeader title={editId ? 'Panoyu düzenle' : 'Yeni pano'} onBack={() => router.back()} closeIcon />
+      <KeyboardSafeView>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
         {/* Önizleme */}
@@ -193,9 +197,12 @@ export default function BoardFormScreen() {
         ) : null}
       </ScrollView>
 
+      {kb === 0 ? (
       <View style={{ paddingHorizontal: 20, paddingTop: 8, paddingBottom: 12 }}>
         <Button label={editId ? 'Kaydet' : 'Pano oluştur'} icon={editId ? 'check' : 'plus'} onPress={submit} />
       </View>
+      ) : null}
+      </KeyboardSafeView>
     </Screen>
   );
 }

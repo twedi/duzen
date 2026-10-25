@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Pressable, ScrollView, TextInput, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { KeyboardSafeView } from '../src/components/KeyboardSafeView';
 import { Screen } from '../src/components/Screen';
 import { AppText } from '../src/components/AppText';
 import { TaskCard } from '../src/components/TaskCard';
@@ -101,6 +102,7 @@ export default function SearchScreen() {
         <ChoiceChip label="Tamamlanan" selected={filter === 'done'} onPress={() => setFilter('done')} />
       </View>
 
+      <KeyboardSafeView screenHasBottomInset={false}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 32, gap: 10 }} keyboardShouldPersistTaps="handled">
         {!query ? (
           <AppText variant="small" color="textSecondary" style={{ textAlign: 'center', marginTop: 32 }}>
@@ -128,7 +130,7 @@ export default function SearchScreen() {
             key={card.id}
             card={card}
             showBoard
-            onPress={() => router.push({ pathname: '/card/[id]', params: { id: String(card.id) } })}
+            onPress={() => router.push({ pathname: '/task/[id]', params: { id: String(card.id) } })}
             onToggle={() => toggle(card)}
           />
         ))}
@@ -139,6 +141,7 @@ export default function SearchScreen() {
           </AppText>
         ) : null}
       </ScrollView>
+      </KeyboardSafeView>
     </Screen>
   );
 }

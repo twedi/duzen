@@ -80,6 +80,26 @@ async function init(): Promise<SQLite.SQLiteDatabase> {
       sort INTEGER NOT NULL DEFAULT 0
     );
 
+    -- Basit listeler (alışveriş listesi gibi; tarih ve pano yok)
+    CREATE TABLE IF NOT EXISTS checklists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      color TEXT NOT NULL,
+      icon TEXT NOT NULL,
+      sort INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS checklist_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      list_id INTEGER NOT NULL REFERENCES checklists(id) ON DELETE CASCADE,
+      text TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      sort INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_items_list ON checklist_items(list_id);
     CREATE INDEX IF NOT EXISTS idx_cards_list ON cards(list_id);
     CREATE INDEX IF NOT EXISTS idx_cards_due ON cards(due_at);
     CREATE INDEX IF NOT EXISTS idx_lists_board ON lists(board_id);

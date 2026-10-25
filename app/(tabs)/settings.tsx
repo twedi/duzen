@@ -113,7 +113,7 @@ export default function SettingsScreen() {
   };
 
   const wipe = () =>
-    Alert.alert('Tüm verileri sil', 'Bütün panoların ve görevlerin silinecek. Şablonların ve ayarların kalır. Bu işlem geri alınamaz.', [
+    Alert.alert('Tüm verileri sil', 'Bütün panoların, görevlerin ve listelerin silinecek. Şablonların ve ayarların kalır. Bu işlem geri alınamaz.', [
       { text: 'Vazgeç', style: 'cancel' },
       {
         text: 'Hepsini sil',

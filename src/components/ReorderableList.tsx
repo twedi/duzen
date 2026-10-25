@@ -28,6 +28,9 @@ type Props<T> = {
   contentContainerStyle?: StyleProp<ViewStyle>;
   ListEmptyComponent?: React.ReactElement | null;
   ListHeaderComponent?: React.ReactElement | null;
+  ListFooterComponent?: React.ReactElement | null;
+  /** Dışarıdan kaydırma kontrolü için (ör. yeni öğe eklenince sona kaydır) */
+  scrollRef?: React.RefObject<ScrollView | null>;
   /** Öğeler arası boşluk */
   gap?: number;
 };
@@ -37,7 +40,7 @@ type Layout = { y: number; h: number };
 const EDGE = 80; // otomatik kaydırma bölgesi (px)
 
 export function ReorderableList<T>(props: Props<T>) {
-  const { data, renderItem, enabled, contentContainerStyle, ListEmptyComponent, ListHeaderComponent, gap = 10 } = props;
+  const { data, renderItem, enabled, contentContainerStyle, ListEmptyComponent, ListHeaderComponent, ListFooterComponent, gap = 10 } = props;
   const propsRef = useRef(props);
   propsRef.current = props;
   const keyOf = (item: T) => propsRef.current.keyExtractor(item);
@@ -56,7 +59,8 @@ export function ReorderableList<T>(props: Props<T>) {
   const responders = useRef(new Map<string, PanResponderInstance>()).current;
 
   const containerRef = useRef<View>(null);
-  const scrollRef = useRef<ScrollView>(null);
+  const ownScrollRef = useRef<ScrollView>(null);
+  const scrollRef = (props.scrollRef ?? ownScrollRef) as React.RefObject<ScrollView>;
   const scrollY = useRef(0);
   const contentH = useRef(0);
   const viewport = useRef({ top: 0, height: 0 });
@@ -268,6 +272,7 @@ export function ReorderableList<T>(props: Props<T>) {
             );
           })}
         </View>
+        {ListFooterComponent ?? null}
       </ScrollView>
     </View>
   );

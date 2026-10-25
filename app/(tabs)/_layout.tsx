@@ -15,6 +15,7 @@ type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
 const ITEMS: Record<string, { label: string; icon: IconName; iconActive: IconName; href: string }> = {
   index: { label: 'Bugün', icon: 'calendar-check-outline', iconActive: 'calendar-check', href: '/' },
   boards: { label: 'Panolar', icon: 'view-dashboard-outline', iconActive: 'view-dashboard', href: '/boards' },
+  lists: { label: 'Listeler', icon: 'format-list-checks', iconActive: 'format-list-checks', href: '/lists' },
   timeline: { label: 'Çizelge', icon: 'chart-timeline-variant', iconActive: 'chart-timeline-variant-shimmer', href: '/timeline' },
   settings: { label: 'Ayarlar', icon: 'tune-variant', iconActive: 'tune-variant', href: '/settings' },
 };
@@ -48,7 +49,7 @@ function TabItem({ item, focused, onPress }: { item: (typeof ITEMS)[string]; foc
       }}
       style={{ flex: 1, alignItems: 'center', gap: 4 }}
     >
-      <View style={{ width: 64, height: 34, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: 58, height: 34, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View style={[{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, borderRadius: 999 }, pill]} />
         <Animated.View style={icon}>
           <MaterialCommunityIcons name={focused ? item.iconActive : item.icon} size={22} color={focused ? c.onPrimaryContainer : c.textSecondary} />
@@ -103,6 +104,7 @@ export default function TabsLayout() {
     <Tabs tabBar={(props) => <TabBar {...props} />} screenOptions={{ headerShown: false, animation: 'shift' }}>
       <Tabs.Screen name="index" />
       <Tabs.Screen name="boards" />
+      <Tabs.Screen name="lists" />
       <Tabs.Screen name="timeline" />
       <Tabs.Screen name="settings" />
     </Tabs>

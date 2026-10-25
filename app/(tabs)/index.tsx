@@ -141,7 +141,7 @@ export default function TodayScreen() {
   }, [data, range]);
 
   const upcomingCount = upcomingGroups.reduce((s, g) => s + g.items.length, 0);
-  const open = (id: number) => router.push({ pathname: '/card/[id]', params: { id: String(id) } });
+  const open = (id: number) => router.push({ pathname: '/task/[id]', params: { id: String(id) } });
 
   const remaining = today.length + overdue.length;
   const doneCount = data.doneToday.length;

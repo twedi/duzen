@@ -103,7 +103,7 @@ export default function BoardScreen() {
     if (!activeId) return;
     router.push({ pathname: '/card/[id]', params: { id: 'new', listId: String(activeId) } });
   };
-  const openCard = (cardId: number) => router.push({ pathname: '/card/[id]', params: { id: String(cardId) } });
+  const openCard = (cardId: number) => router.push({ pathname: '/task/[id]', params: { id: String(cardId) } });
 
   const { toggle: toggleDone, remove } = useTaskActions(load);
 

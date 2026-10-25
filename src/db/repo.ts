@@ -56,6 +56,7 @@ export type CardView = {
   list_is_done: number;
   board_name: string;
   board_color: string;
+  board_icon: string;
   tags: string[];
   sub_total: number;
   sub_done: number;
@@ -354,7 +355,7 @@ export async function setDoneList(boardId: number, listId: number | null): Promi
 
 const CARD_SELECT = `
   SELECT c.*, l.board_id AS board_id, l.name AS list_name, l.is_done AS list_is_done,
-    b.name AS board_name, b.color AS board_color,
+    b.name AS board_name, b.color AS board_color, b.icon AS board_icon,
     (SELECT COUNT(*) FROM subtasks s WHERE s.card_id = c.id) AS sub_total,
     (SELECT COUNT(*) FROM subtasks s WHERE s.card_id = c.id AND s.done = 1) AS sub_done,
     (SELECT group_concat(t.name, '||') FROM card_tags ct JOIN tags t ON t.id = ct.tag_id WHERE ct.card_id = c.id) AS tag_names
@@ -750,7 +751,7 @@ export async function getCounts(): Promise<{ boards: number; cards: number; done
   return { boards: b?.n ?? 0, cards: c?.n ?? 0, done: c?.d ?? 0 };
 }
 
-/** Panoları, kartları ve etiketleri siler. Şablonlar ve ayarlar kalır. */
+/** Panoları, kartları, etiketleri ve basit listeleri siler. Şablonlar ve ayarlar kalır. */
 export async function wipeAll(): Promise<void> {
   const db = await getDb();
   await db.withTransactionAsync(async () => {
@@ -760,6 +761,8 @@ export async function wipeAll(): Promise<void> {
     await db.runAsync('DELETE FROM lists');
     await db.runAsync('DELETE FROM boards');
     await db.runAsync('DELETE FROM tags');
+    await db.runAsync('DELETE FROM checklist_items');
+    await db.runAsync('DELETE FROM checklists');
   });
 }
 
@@ -862,4 +865,10 @@ export async function getStats(now: Date = new Date()): Promise<Stats> {
     focusMinutes: totals?.focus ?? 0,
     boards: boards.map((b) => ({ id: b.id, name: b.name, color: b.color, total: b.total, done: b.done })),
   };
+}
+
+/** Görev detay ekranından tek bir alt görevi işaretler */
+export async function setSubtaskDone(subtaskId: number, done: boolean): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('UPDATE subtasks SET done = ? WHERE id = ?', [done ? 1 : 0, subtaskId]);
 }

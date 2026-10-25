@@ -12,7 +12,12 @@ const TABLES: Record<string, { cols: string[]; defaults?: Record<string, unknown
   tags: { cols: ['id', 'name'] },
   card_tags: { cols: ['card_id', 'tag_id'] },
   templates: { cols: ['id', 'name', 'hint', 'icon', 'color', 'lists', 'sort'], defaults: { hint: '', sort: 0 } },
+  checklists: { cols: ['id', 'name', 'color', 'icon', 'sort', 'created_at'], defaults: { sort: 0 } },
+  checklist_items: { cols: ['id', 'list_id', 'text', 'done', 'sort', 'created_at'], defaults: { done: 0, sort: 0 } },
 };
+
+/** Eski yedeklerde bulunmayabilecek tablolar: yedekte varsa geri yüklenir, yoksa mevcut hali korunur */
+const OPTIONAL_GROUPS = [['templates'], ['checklists', 'checklist_items']];
 
 const DATA_ORDER = ['boards', 'lists', 'cards', 'subtasks', 'tags', 'card_tags'];
 
@@ -25,8 +30,8 @@ export type BackupFile = {
 
 export async function exportAll(): Promise<string> {
   const db = await getDb();
-  const out: Record<string, unknown> = { app: 'duzen', version: 4, exportedAt: new Date().toISOString() };
-  for (const t of [...DATA_ORDER, 'templates']) {
+  const out: Record<string, unknown> = { app: 'duzen', version: 5, exportedAt: new Date().toISOString() };
+  for (const t of [...DATA_ORDER, 'templates', 'checklists', 'checklist_items']) {
     out[t] = await db.getAllAsync(`SELECT * FROM ${t}`);
   }
   return JSON.stringify(out, null, 2);
@@ -39,7 +44,7 @@ export function parseBackup(text: string): BackupFile {
   } catch {
     throw new Error('Dosya okunamadı (geçerli bir JSON değil).');
   }
-  if (!data || data.app !== 'duzen' || ![1, 2, 3, 4].includes(data.version)) {
+  if (!data || data.app !== 'duzen' || ![1, 2, 3, 4, 5].includes(data.version)) {
     throw new Error('Bu dosya Düzen yedeği gibi görünmüyor.');
   }
   for (const t of DATA_ORDER) {
@@ -50,8 +55,10 @@ export function parseBackup(text: string): BackupFile {
 
 export async function importAll(backup: BackupFile): Promise<void> {
   const db = await getDb();
-  const hasTemplates = Array.isArray(backup.templates);
-  const tables = hasTemplates ? [...DATA_ORDER, 'templates'] : DATA_ORDER;
+  const tables = [...DATA_ORDER];
+  for (const group of OPTIONAL_GROUPS) {
+    if (group.every((t) => Array.isArray(backup[t]))) tables.push(...group);
+  }
 
   await db.withTransactionAsync(async () => {
     for (const t of [...tables].reverse()) {

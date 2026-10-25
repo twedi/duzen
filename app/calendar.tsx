@@ -160,7 +160,7 @@ export default function CalendarScreen() {
               key={card.id}
               card={card}
               showBoard
-              onPress={() => router.push({ pathname: '/card/[id]', params: { id: String(card.id) } })}
+              onPress={() => router.push({ pathname: '/task/[id]', params: { id: String(card.id) } })}
               onToggle={() => toggle(card)}
             />
           ))}

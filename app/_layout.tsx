@@ -35,6 +35,7 @@ function Navigator() {
       <Stack.Screen name="board/new" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="templates/[id]" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="focus/[id]" options={{ animation: 'fade_from_bottom' }} />
+      <Stack.Screen name="checklist/edit" options={{ animation: 'slide_from_bottom' }} />
       <Stack.Screen name="search" options={{ animation: 'fade' }} />
     </Stack>
   );

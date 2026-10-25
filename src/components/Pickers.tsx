@@ -257,12 +257,12 @@ function GradientSlider({
   );
 }
 
-export function IconPicker({ value, onChange, color }: { value: string; onChange: (i: string) => void; color: string }) {
+export function IconPicker({ value, onChange, color, icons = ICON_CHOICES }: { value: string; onChange: (i: string) => void; color: string; icons?: string[] }) {
   const { theme } = useTheme();
   const c = theme.colors;
   return (
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-      {ICON_CHOICES.map((ic) => {
+      {icons.map((ic) => {
         const sel = ic === value;
         return (
           <Pressable
